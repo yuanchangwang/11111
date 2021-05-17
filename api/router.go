@@ -1,14 +1,14 @@
 package api
 
 import (
-	binhtml "github.com/Sansui233/proxypool/internal/bindata/html"
-	"github.com/Sansui233/proxypool/log"
 	"html/template"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
+
+	binhtml "github.com/Sansui233/proxypool/internal/bindata/html"
+	"github.com/Sansui233/proxypool/log"
 
 	"github.com/Sansui233/proxypool/config"
 	appcache "github.com/Sansui233/proxypool/internal/cache"
@@ -19,7 +19,7 @@ import (
 	_ "github.com/heroku/x/hmetrics/onload"
 )
 
-const version = "v0.7.0"
+const version = "v0.6.0"
 
 var router *gin.Engine
 
@@ -29,16 +29,11 @@ func setupRouter() {
 	store := persistence.NewInMemoryStore(time.Minute)
 	router.Use(gin.Recovery(), cache.SiteCache(store, time.Minute)) // 加上处理panic的中间件，防止遇到panic退出程序
 
-	_ = binhtml.RestoreAssets("", "assets/html") // 恢复静态文件（不恢复问题也不大就是难修改）
-	_ = binhtml.RestoreAssets("", "assets/static")
-
 	temp, err := loadHTMLTemplate() // 加载html模板，模板源存放于html.go中的类似_assetsHtmlSurgeHtml的变量
 	if err != nil {
 		panic(err)
 	}
 	router.SetHTMLTemplate(temp) // 应用模板
-
-	router.StaticFile("/static/index.js", "assets/static/index.js")
 
 	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "assets/html/index.html", gin.H{
@@ -59,7 +54,6 @@ func setupRouter() {
 	router.GET("/clash", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "assets/html/clash.html", gin.H{
 			"domain": config.Config.Domain,
-			"port":   config.Config.Port,
 		})
 	})
 
@@ -189,91 +183,51 @@ func setupRouter() {
 	})
 
 	router.GET("/ss/sub", func(c *gin.Context) {
-		proxyCountry := c.DefaultQuery("c", "")
-		proxyNotCountry := c.DefaultQuery("nc", "")
-		proxySpeed := c.DefaultQuery("speed", "")
-		proxyFilter := c.DefaultQuery("filter", "")
 		proxies := appcache.GetProxies("proxies")
 		ssSub := provider.SSSub{
 			Base: provider.Base{
-				Proxies:    &proxies,
-				Types:      "ss",
-				Country:    proxyCountry,
-				NotCountry: proxyNotCountry,
-				Speed:      proxySpeed,
-				Filter:     proxyFilter,
+				Proxies: &proxies,
+				Types:   "ss",
 			},
 		}
 		c.String(200, ssSub.Provide())
 	})
 	router.GET("/ssr/sub", func(c *gin.Context) {
-		proxyCountry := c.DefaultQuery("c", "")
-		proxyNotCountry := c.DefaultQuery("nc", "")
-		proxySpeed := c.DefaultQuery("speed", "")
-		proxyFilter := c.DefaultQuery("filter", "")
 		proxies := appcache.GetProxies("proxies")
 		ssrSub := provider.SSRSub{
 			Base: provider.Base{
-				Proxies:    &proxies,
-				Types:      "ssr",
-				Country:    proxyCountry,
-				NotCountry: proxyNotCountry,
-				Speed:      proxySpeed,
-				Filter:     proxyFilter,
+				Proxies: &proxies,
+				Types:   "ssr",
 			},
 		}
 		c.String(200, ssrSub.Provide())
 	})
 	router.GET("/vmess/sub", func(c *gin.Context) {
-		proxyCountry := c.DefaultQuery("c", "")
-		proxyNotCountry := c.DefaultQuery("nc", "")
-		proxySpeed := c.DefaultQuery("speed", "")
-		proxyFilter := c.DefaultQuery("filter", "")
 		proxies := appcache.GetProxies("proxies")
 		vmessSub := provider.VmessSub{
 			Base: provider.Base{
-				Proxies:    &proxies,
-				Types:      "vmess",
-				Country:    proxyCountry,
-				NotCountry: proxyNotCountry,
-				Speed:      proxySpeed,
-				Filter:     proxyFilter,
+				Proxies: &proxies,
+				Types:   "vmess",
 			},
 		}
 		c.String(200, vmessSub.Provide())
 	})
 	router.GET("/sip002/sub", func(c *gin.Context) {
-		proxyCountry := c.DefaultQuery("c", "")
-		proxyNotCountry := c.DefaultQuery("nc", "")
-		proxySpeed := c.DefaultQuery("speed", "")
-		proxyFilter := c.DefaultQuery("filter", "")
 		proxies := appcache.GetProxies("proxies")
 		sip002Sub := provider.SIP002Sub{
 			Base: provider.Base{
-				Proxies:    &proxies,
-				Types:      "ss",
-				Country:    proxyCountry,
-				NotCountry: proxyNotCountry,
-				Speed:      proxySpeed,
-				Filter:     proxyFilter,
+				Proxies: &proxies,
+				Types:   "ss",
 			},
 		}
 		c.String(200, sip002Sub.Provide())
 	})
 	router.GET("/trojan/sub", func(c *gin.Context) {
-		proxyCountry := c.DefaultQuery("c", "")
-		proxyNotCountry := c.DefaultQuery("nc", "")
-		proxySpeed := c.DefaultQuery("speed", "")
-		proxyFilter := c.DefaultQuery("filter", "")
 		proxies := appcache.GetProxies("proxies")
 		trojanSub := provider.TrojanSub{
 			Base: provider.Base{
-				Proxies:    &proxies,
-				Types:      "trojan",
-				Country:    proxyCountry,
-				NotCountry: proxyNotCountry,
-				Speed:      proxySpeed,
-				Filter:     proxyFilter,
+				Proxies: &proxies,
+				Types:   "trojan",
 			},
 		}
 		c.String(200, trojanSub.Provide())
@@ -310,13 +264,11 @@ func Run() {
 
 // 返回页面templates
 func loadHTMLTemplate() (t *template.Template, err error) {
+	_ = binhtml.RestoreAssets("", "assets/html")
 	t = template.New("")
-	for _, fileName := range binhtml.AssetNames() { //fileName带有路径前缀
-		if strings.Contains(fileName, "css") {
-			continue
-		}
-		data := binhtml.MustAsset(fileName)          //读取页面数据
-		t, err = t.New(fileName).Parse(string(data)) //生成带路径名称的模板
+	for _, fileName := range binhtml.AssetNames() {
+		data := binhtml.MustAsset(fileName)
+		t, err = t.New(fileName).Parse(string(data))
 		if err != nil {
 			return nil, err
 		}
